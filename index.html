@@ -1,0 +1,1245 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>三角形の面積</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap');
+        
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: 'Zen Maru Gothic', sans-serif;
+            background-color: #f8fafc;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+            -webkit-touch-callout: none;
+            overscroll-behavior: none;
+        }
+
+        .btn-action {
+            transition: transform 0.15s ease-out, background-color 0.15s ease, box-shadow 0.15s ease;
+            touch-action: manipulation;
+        }
+        .btn-action:active {
+            transform: scale(0.94);
+        }
+
+        .piece-draggable {
+            cursor: grab;
+            transition: filter 0.15s ease;
+            touch-action: none;
+        }
+        .piece-draggable:active {
+            cursor: grabbing;
+            filter: drop-shadow(0 8px 16px rgba(37,99,235,0.25));
+        }
+
+        .draggable-text {
+            cursor: grab;
+            user-select: none;
+        }
+        .draggable-text:active {
+            cursor: grabbing;
+        }
+        .draggable-text rect {
+            fill: transparent;
+            stroke: none;
+            transition: fill 0.15s ease, stroke 0.15s ease;
+        }
+        .draggable-text:hover rect {
+            stroke: #3b82f6;
+            stroke-dasharray: 4,4;
+            fill: rgba(59, 130, 246, 0.12);
+        }
+
+        canvas, svg, g, path, polygon {
+            touch-action: none;
+            -webkit-touch-callout: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .toast-slide {
+            animation: toastIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        @keyframes toastIn {
+            from { transform: translateY(100%) scale(0.9); opacity: 0; }
+            to { transform: translateY(0) scale(1); opacity: 1; }
+        }
+    </style>
+</head>
+<body class="h-screen w-screen overflow-hidden bg-slate-100 relative select-none touch-none">
+
+    <!-- 全画面共通コントロールツールバー -->
+    <header class="absolute top-3 left-3 right-3 z-30 flex items-center justify-between gap-2 bg-white/95 backdrop-blur-md p-2 px-4 rounded-2xl shadow-xl border border-slate-200 pointer-events-auto overflow-x-auto whitespace-nowrap touch-none">
+        <!-- 左側：基本ツール -->
+        <div class="flex items-center gap-2 shrink-0">
+            <button id="btn-screenshot" title="スクリーンショット保存" class="h-9 px-3 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl font-bold text-sm shadow-sm transition flex items-center justify-center btn-action shrink-0">
+                <i class="fa-solid fa-camera"></i>
+            </button>
+            <button id="btn-undo" class="h-9 px-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold text-sm shadow-sm transition flex items-center gap-1.5 btn-action shrink-0">
+                <i class="fa-solid fa-rotate-left"></i> 1つもどす
+            </button>
+            <button id="btn-reset" class="h-9 px-3 bg-slate-700 hover:bg-slate-800 text-white rounded-xl font-bold text-sm shadow-sm transition flex items-center gap-1.5 btn-action shrink-0">
+                <i class="fa-solid fa-power-off"></i> 初めから
+            </button>
+        </div>
+
+        <div class="h-5 w-px bg-slate-300 mx-1 shrink-0"></div>
+
+        <!-- 右側：モード切替 (つけたす / 切る / 動かす / 回す / PCで書く / ペンで書く) -->
+        <div class="flex items-center gap-2 shrink-0">
+            <button id="btn-mode-add" class="mode-btn h-9 px-3 rounded-xl font-bold text-sm transition flex items-center gap-1.5 bg-blue-600 text-white shadow-sm btn-action shrink-0">
+                <i class="fa-solid fa-square-plus"></i> つけたす
+            </button>
+            <button id="btn-mode-cut" class="mode-btn h-9 px-3 rounded-xl font-bold text-sm transition flex items-center gap-1.5 bg-white text-slate-700 hover:bg-slate-50 border border-slate-300 shadow-sm btn-action shrink-0">
+                <i class="fa-solid fa-scissors"></i> 切る
+            </button>
+            <button id="btn-mode-select" class="mode-btn h-9 px-3 rounded-xl font-bold text-sm transition flex items-center gap-1.5 bg-white text-slate-700 hover:bg-slate-50 border border-slate-300 shadow-sm btn-action shrink-0">
+                <i class="fa-solid fa-hand"></i> 動かす
+            </button>
+            <button id="btn-mode-rotate" class="mode-btn h-9 px-3 rounded-xl font-bold text-sm transition flex items-center gap-1.5 bg-white text-slate-700 hover:bg-slate-50 border border-slate-300 shadow-sm btn-action shrink-0">
+                <i class="fa-solid fa-rotate"></i> 回す
+            </button>
+            <!-- アイコンをキーボードに変更 -->
+            <button id="btn-mode-text" class="mode-btn h-9 px-3 rounded-xl font-bold text-sm transition flex items-center gap-1.5 bg-white text-slate-700 hover:bg-slate-50 border border-slate-300 shadow-sm btn-action shrink-0">
+                <i class="fa-solid fa-keyboard"></i> PCで書く
+            </button>
+            <button id="btn-mode-pen" class="mode-btn h-9 px-3 rounded-xl font-bold text-sm transition flex items-center gap-1.5 bg-white text-slate-700 hover:bg-slate-50 border border-slate-300 shadow-sm btn-action shrink-0">
+                <i class="fa-solid fa-pen"></i> ペンで書く
+            </button>
+
+            <!-- ペンツールカラー＆消しゴム -->
+            <div id="pen-controls" class="flex items-center gap-1.5 ml-1 shrink-0">
+                <button id="pen-black" title="黒ペン" class="pen-btn w-7 h-7 rounded-full bg-slate-800 hover:scale-105 transition shrink-0 border-2 border-white ring-2 ring-slate-800"></button>
+                <button id="pen-red" title="赤ペン" class="pen-btn w-7 h-7 rounded-full bg-rose-500 hover:scale-105 transition shrink-0 border-2 border-white ring-2 ring-transparent"></button>
+                <button id="pen-blue" title="青ペン" class="pen-btn w-7 h-7 rounded-full bg-blue-500 hover:scale-105 transition shrink-0 border-2 border-white ring-2 ring-transparent"></button>
+                <button id="pen-eraser" title="消しゴム" class="h-8 px-2.5 bg-white hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition flex items-center gap-1 border border-slate-300 shrink-0">
+                    <i class="fa-solid fa-eraser"></i>
+                </button>
+                <button id="btn-clear-memo" title="メモを全消去" class="h-8 px-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold text-xs shadow-sm transition flex items-center gap-1 btn-action shrink-0">
+                    <i class="fa-solid fa-trash-can"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 全画面メインエリア -->
+    <main id="capture-area" class="w-full h-full relative overflow-hidden bg-white touch-none">
+        <!-- インラインテキストエディタ（初期状態は hidden） -->
+        <textarea id="text-editor" 
+            class="absolute hidden z-30 bg-white/80 border border-dashed border-blue-500/80 rounded-md outline-none font-bold text-slate-900 shadow-sm transition-none resize-none overflow-hidden p-0" 
+            style="font-family: 'Zen Maru Gothic', sans-serif; box-sizing: border-box;"></textarea>
+
+        <svg id="canvas-svg" class="w-full h-full absolute inset-0 touch-none select-none z-10" viewBox="0 0 1280 720" preserveAspectRatio="xMidYMid meet">
+            <g id="grid-layer"></g>
+            <g id="dashed-background-layer"></g>
+            <g id="pieces-layer"></g>
+            <!-- 追加: テキストレイヤー -->
+            <g id="text-layer"></g>
+
+            <path id="user-cut-line" d="" stroke="#ef4444" stroke-width="2" stroke-dasharray="4,4" stroke-linecap="round" fill="none" pointer-events="none" opacity="0.95" />
+            <path id="user-add-line" d="" stroke="#dc2626" stroke-width="2" stroke-dasharray="4,4" stroke-linecap="round" fill="none" pointer-events="none" opacity="0.95" />
+            <circle id="cut-start-indicator" cx="-100" cy="-100" r="5" fill="#ef4444" stroke="#ffffff" stroke-width="1.5" pointer-events="none" opacity="0" />
+            <circle id="cut-end-indicator" cx="-100" cy="-100" r="5" fill="#ef4444" stroke="#ffffff" stroke-width="1.5" pointer-events="none" opacity="0" />
+        </svg>
+
+        <canvas id="memo-canvas" class="w-full h-full absolute inset-0 z-20 pointer-events-none cursor-crosshair touch-none"></canvas>
+    </main>
+
+    <script>
+        document.addEventListener('touchmove', function(e) {
+            if (e.target.closest('#capture-area') || e.target.closest('header')) {
+                if (e.cancelable) e.preventDefault();
+            }
+        }, { passive: false });
+
+        const svg = document.getElementById('canvas-svg');
+        const gridLayer = document.getElementById('grid-layer');
+        const dashedBgLayer = document.getElementById('dashed-background-layer');
+        const piecesLayer = document.getElementById('pieces-layer');
+        const textLayer = document.getElementById('text-layer');
+        const textEditor = document.getElementById('text-editor');
+        const userCutLine = document.getElementById('user-cut-line');
+        const userAddLine = document.getElementById('user-add-line');
+        const cutStartIndicator = document.getElementById('cut-start-indicator');
+        const cutEndIndicator = document.getElementById('cut-end-indicator');
+        const memoCanvas = document.getElementById('memo-canvas');
+        const memoCtx = memoCanvas.getContext('2d');
+
+        const state = {
+            showGrid: true,
+            activeMode: 'add',
+            pieces: [],
+            selectedPieceIndex: null,
+            draggedPieceIndex: null,
+            dragStartPos: { x: 0, y: 0 },
+            dragPieceStartOffset: { x: 0, y: 0 },
+            isDrawingCut: false,
+            cutStart: null,
+            cutCurrent: null,
+            isDrawingAdd: false,
+            addStart: null,
+            addCurrent: null,
+            addFirstDir: null,
+            penColor: '#1e293b', // 黒を初期設定
+            penSize: 3,
+            isErasing: false,
+            isDrawingMemo: false,
+            lastPenPos: null,
+            textElements: [],   // { id, x, y, text } の配列
+            editingTextId: null // 現在編集中のテキストID
+        };
+
+        function showToast(msg) {
+            // 説明・報告メッセージ非表示化のため処理なし
+        }
+
+        function getSvgCoords(e) {
+            const pt = svg.createSVGPoint();
+            let clientX = e.clientX;
+            let clientY = e.clientY;
+            
+            if ((clientX === undefined || clientX === null) && e.touches && e.touches.length > 0) {
+                clientX = e.touches[0].clientX; 
+                clientY = e.touches[0].clientY;
+            } else if ((clientX === undefined || clientX === null) && e.changedTouches && e.changedTouches.length > 0) {
+                clientX = e.changedTouches[0].clientX; 
+                clientY = e.changedTouches[0].clientY;
+            }
+            pt.x = (clientX !== undefined && clientX !== null) ? clientX : 0;
+            pt.y = (clientY !== undefined && clientY !== null) ? clientY : 0;
+            const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
+            return { x: svgP.x, y: svgP.y };
+        }
+
+        function getPolygonCentroid(pts) {
+            let cx = 0, cy = 0;
+            pts.forEach(p => { cx += p.x; cy += p.y; });
+            return { x: cx / pts.length, y: cy / pts.length };
+        }
+
+        function rotatePoint(pt, center, angleDeg) {
+            const rad = (angleDeg * Math.PI) / 180;
+            const cos = Math.cos(rad), sin = Math.sin(rad);
+            const dx = pt.x - center.x, dy = pt.y - center.y;
+            return {
+                x: center.x + (dx * cos - dy * sin),
+                y: center.y + (dx * sin + dy * cos)
+            };
+        }
+
+        const SCALE = 48;
+        const ORIGIN = { x: 96, y: 560 };
+
+        function cmToSvg(pt) {
+            return { x: ORIGIN.x + pt.x * SCALE, y: ORIGIN.y - pt.y * SCALE };
+        }
+
+        function svgToCm(pt) {
+            return { x: (pt.x - ORIGIN.x) / SCALE, y: (ORIGIN.y - pt.y) / SCALE };
+        }
+
+        function snapToGridPoint(svgPt) {
+            const cmPt = svgToCm(svgPt);
+            const roundedCm = { x: Math.round(cmPt.x), y: Math.round(cmPt.y) };
+            return cmToSvg(roundedCm);
+        }
+
+        // 添付画像の形状に合わせた初期三角形（底辺6cm, 高さ4cm, 上頂点x=6,y=8）
+        const BASE_TRIANGLE = [
+            { x: 2, y: 4 },
+            { x: 8, y: 4 },
+            { x: 6, y: 8 }
+        ];
+
+        let historyStack = [];
+
+        function saveHistory() {
+            if (historyStack.length > 20) historyStack.shift();
+            historyStack.push(JSON.parse(JSON.stringify({
+                pieces: state.pieces,
+                textElements: state.textElements
+            })));
+        }
+
+        function renderGrid() {
+            gridLayer.innerHTML = '';
+            if (!state.showGrid) return;
+
+            const minCmX = -1, maxCmX = 26;
+            const minCmY = -2, maxCmY = 10;
+
+            for (let x = minCmX; x <= maxCmX; x++) {
+                const pt1 = cmToSvg({ x: x, y: minCmY });
+                const pt2 = cmToSvg({ x: x, y: maxCmY });
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', pt1.x); line.setAttribute('y1', pt1.y);
+                line.setAttribute('x2', pt2.x); line.setAttribute('y2', pt2.y);
+                line.setAttribute('stroke', '#cbd5e1'); line.setAttribute('stroke-width', '1');
+                line.setAttribute('pointer-events', 'none');
+                gridLayer.appendChild(line);
+            }
+
+            for (let y = minCmY; y <= maxCmY; y++) {
+                const pt1 = cmToSvg({ x: minCmX, y: y });
+                const pt2 = cmToSvg({ x: maxCmX, y: y });
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', pt1.x); line.setAttribute('y1', pt1.y);
+                line.setAttribute('x2', pt2.x); line.setAttribute('y2', pt2.y);
+                line.setAttribute('stroke', '#cbd5e1'); line.setAttribute('stroke-width', '1');
+                line.setAttribute('pointer-events', 'none');
+                gridLayer.appendChild(line);
+            }
+        }
+
+        function renderDashedBackground() {
+            dashedBgLayer.innerHTML = '';
+            const pointsStr = BASE_TRIANGLE.map(pt => {
+                const svgPt = cmToSvg(pt);
+                return `${svgPt.x},${svgPt.y}`;
+            }).join(' ');
+
+            const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+            poly.setAttribute('points', pointsStr);
+            poly.setAttribute('fill', 'none');
+            poly.setAttribute('stroke', '#475569');
+            poly.setAttribute('stroke-width', '2.5');
+            poly.setAttribute('stroke-dasharray', '6,4');
+            poly.setAttribute('pointer-events', 'none');
+            dashedBgLayer.appendChild(poly);
+        }
+
+        // (2) JavaScript 実装ロジック：画面上の座標同期と入力枠配置関数
+        function positionTextEditor(svgX, svgY) {
+            const pt = svg.createSVGPoint();
+            pt.x = svgX;
+            pt.y = svgY;
+            const matrix = svg.getScreenCTM();
+            if (!matrix) return;
+
+            const screenPt = pt.matrixTransform(matrix);
+            const container = document.getElementById('capture-area');
+            const rect = container.getBoundingClientRect();
+
+            const left = screenPt.x - rect.left;
+            const top = screenPt.y - rect.top;
+            const scale = matrix.a; // スケール値
+
+            const GRID_SIZE = SCALE; // 48px
+            textEditor.style.left = `${left}px`;
+            textEditor.style.top = `${top}px`;
+            
+            textEditor.style.fontSize = `${38 * scale}px`;
+            textEditor.style.lineHeight = `${GRID_SIZE * scale}px`;
+            textEditor.style.padding = `${2 * scale}px ${6 * scale}px`;
+                
+            autoResizeTextEditor(scale);
+        }
+
+        function autoResizeTextEditor(customScale) {
+            const matrix = svg.getScreenCTM();
+            const scale = customScale || (matrix ? matrix.a : 1);
+            const lines = textEditor.value.split('\n');
+            let maxLen = 1;
+            lines.forEach(l => { if (l.length > maxLen) maxLen = l.length; });
+                
+            const GRID_SIZE = SCALE;
+            const width = Math.max(100 * scale, (maxLen + 1.2) * 38 * scale);
+            const height = Math.max(GRID_SIZE * scale, lines.length * GRID_SIZE * scale);
+                
+            textEditor.style.width = `${width}px`;
+            textEditor.style.height = `${height}px`;
+        }
+
+        // ③ 編集開始と確定（ライフサイクル）
+        function startTextEditing(textObj) {
+            state.editingTextId = textObj.id;
+            textEditor.value = textObj.text || '';
+            positionTextEditor(textObj.x, textObj.y);
+            textEditor.classList.remove('hidden');
+            renderTextLayer();
+
+            setTimeout(() => {
+                textEditor.focus();
+                textEditor.setSelectionRange(textEditor.value.length, textEditor.value.length);
+            }, 50);
+        }
+
+        function isTextOverlappingWithPieces(item) {
+            if (!state.pieces || state.pieces.length === 0) return false;
+
+            const lines = (item.text || '').split('\n');
+            const fontSize = 38;
+            const GRID_SIZE = SCALE;
+            let maxLen = 1;
+            lines.forEach(l => { if (l.length > maxLen) maxLen = l.length; });
+            const width = Math.max(80, (maxLen + 0.8) * fontSize);
+            const height = Math.max(GRID_SIZE, lines.length * GRID_SIZE + 8);
+
+            // テキスト矩形の各種ポイント（四角・中心・各辺の中点）
+            const testPoints = [
+                { x: item.x, y: item.y },
+                { x: item.x + width, y: item.y },
+                { x: item.x, y: item.y + height },
+                { x: item.x + width, y: item.y + height },
+                { x: item.x + width / 2, y: item.y + height / 2 },
+                { x: item.x + width / 2, y: item.y },
+                { x: item.x + width / 2, y: item.y + height },
+                { x: item.x, y: item.y + height / 2 },
+                { x: item.x + width, y: item.y + height / 2 }
+            ];
+
+            for (const piece of state.pieces) {
+                const center = getPolygonCentroid(piece.vertices);
+                const worldVerts = piece.vertices.map(v => {
+                    const rotated = rotatePoint(v, center, piece.rotation);
+                    return { x: rotated.x + piece.x, y: rotated.y + piece.y };
+                });
+
+                // テキスト領域内の点がピース内にあるか
+                for (const pt of testPoints) {
+                    if (isPointInPolygon(pt, worldVerts)) return true;
+                }
+
+                // ピースの頂点がテキスト矩形内にあるか
+                for (const v of worldVerts) {
+                    if (v.x >= item.x && v.x <= item.x + width &&
+                        v.y >= item.y && v.y <= item.y + height) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        function finishTextEditing() {
+            if (!state.editingTextId) return;
+
+            const textObj = state.textElements.find(t => t.id === state.editingTextId);
+            const val = textEditor.value.trim();
+
+            if (textObj) {
+                if (val === '') {
+                    // 空文字なら自動削除
+                    state.textElements = state.textElements.filter(t => t.id !== state.editingTextId);
+                } else {
+                    textObj.text = textEditor.value;
+                    // 図形と重なっていない場合のみマス目に吸着
+                    if (!isTextOverlappingWithPieces(textObj)) {
+                        const snapped = snapToGridPoint({ x: textObj.x, y: textObj.y });
+                        textObj.x = snapped.x;
+                        textObj.y = snapped.y;
+                    }
+                }
+            }
+
+            state.editingTextId = null;
+            textEditor.classList.add('hidden');
+            textEditor.value = '';
+            renderTextLayer(); // 描画更新
+        }
+
+        // イベントリスナー設定
+        textEditor.addEventListener('input', () => autoResizeTextEditor());
+        textEditor.addEventListener('blur', () => finishTextEditing());
+        textEditor.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') finishTextEditing();
+        });
+
+        // ④ テキスト描画・ドラッグ自由移動・タップ再編集機能
+        function renderTextLayer() {
+            textLayer.innerHTML = '';
+            const GRID_SIZE = SCALE; // 48
+                
+            state.textElements.forEach((item) => {
+                // 編集中のアイテムは非表示（textarea側が表示されているため）
+                if (item.id === state.editingTextId) return;
+
+                const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                group.setAttribute('class', 'draggable-text');
+                group.setAttribute('data-id', item.id);
+
+                const lines = (item.text || '').split('\n');
+                const fontSize = 38;
+                const lineHeight = GRID_SIZE;
+
+                let maxLen = 1;
+                lines.forEach(l => { if (l.length > maxLen) maxLen = l.length; });
+                const width = Math.max(80, (maxLen + 0.8) * fontSize);
+                const height = Math.max(GRID_SIZE, lines.length * lineHeight + 8);
+
+                // 背景枠（通常時は透明・ホバー時のみCSSで点線枠と背景を表示）
+                const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                rect.setAttribute('x', item.x);
+                rect.setAttribute('y', item.y);
+                rect.setAttribute('width', width);
+                rect.setAttribute('height', height);
+                rect.setAttribute('fill', 'transparent');
+                rect.setAttribute('stroke', 'none');
+                rect.setAttribute('rx', '8');
+                rect.setAttribute('pointer-events', 'all');
+                group.appendChild(rect);
+
+                // テキスト表示要素
+                const textEl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                textEl.setAttribute('x', item.x + 8);
+                textEl.setAttribute('y', item.y + (fontSize * 0.95));
+                textEl.setAttribute('font-size', fontSize);
+                textEl.setAttribute('font-weight', 'bold');
+                textEl.setAttribute('fill', '#0f172a');
+                textEl.setAttribute('font-family', "'Zen Maru Gothic', sans-serif");
+                textEl.setAttribute('pointer-events', 'none');
+
+                lines.forEach((lineStr, lineIdx) => {
+                    const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+                    tspan.setAttribute('x', item.x + 8);
+                    if (lineIdx > 0) tspan.setAttribute('dy', lineHeight);
+                    tspan.textContent = lineStr || ' ';
+                    textEl.appendChild(tspan);
+                });
+
+                group.appendChild(textEl);
+
+                // ドラッグ移動＆クリック判定イベントハンドラ
+                group.addEventListener('pointerdown', (e) => {
+                    if (e.cancelable) e.preventDefault();
+                    if (e.stopPropagation) e.stopPropagation();
+
+                    const start = getSvgCoords(e);
+                    const initX = item.x;
+                    const initY = item.y;
+                    let isMoved = false;
+
+                    const onPointerMove = (moveEvt) => {
+                        const curr = getSvgCoords(moveEvt);
+                        const dx = curr.x - start.x;
+                        const dy = curr.y - start.y;
+
+                        if (Math.hypot(dx, dy) > 3) {
+                            if (!isMoved) {
+                                saveHistory();
+                                isMoved = true;
+                            }
+                        }
+
+                        if (isMoved) {
+                            item.x = initX + dx;
+                            item.y = initY + dy;
+
+                            // ドラッグ中のリアルタイム表示位置更新
+                            rect.setAttribute('x', item.x);
+                            rect.setAttribute('y', item.y);
+                            textEl.setAttribute('x', item.x + 8);
+                            textEl.setAttribute('y', item.y + (fontSize * 0.95));
+                            textEl.querySelectorAll('tspan').forEach((ts) => ts.setAttribute('x', item.x + 8));
+                        }
+                    };
+
+                    const onPointerUp = () => {
+                        window.removeEventListener('pointermove', onPointerMove);
+                        window.removeEventListener('pointerup', onPointerUp);
+
+                        if (isMoved) {
+                            // 図形と重なっている場合のみ自由配置（吸着しない）
+                            if (!isTextOverlappingWithPieces(item)) {
+                                const snapped = snapToGridPoint({ x: item.x, y: item.y });
+                                item.x = snapped.x;
+                                item.y = snapped.y;
+                            }
+                            renderTextLayer();
+                        } else {
+                            // 移動せずタップした場合は再編集を開始
+                            setMode('text');
+                            finishTextEditing();
+                            startTextEditing(item);
+                        }
+                    };
+
+                    window.addEventListener('pointermove', onPointerMove);
+                    window.addEventListener('pointerup', onPointerUp);
+                });
+
+                textLayer.appendChild(group);
+            });
+        }
+
+        function resetToInitialShape() {
+            historyStack = [];
+            state.pieces = [{
+                id: 'piece-0',
+                vertices: BASE_TRIANGLE.map(pt => cmToSvg(pt)),
+                labels: [],
+                x: 0,
+                y: 0,
+                rotation: 0
+            }];
+            state.textElements = [];
+            state.editingTextId = null;
+            if (textEditor) textEditor.classList.add('hidden');
+
+            state.selectedPieceIndex = null;
+            state.penColor = '#1e293b';
+            state.isErasing = false;
+            selectPenColor('#1e293b', penBlack);
+            memoCtx.clearRect(0, 0, memoCanvas.width, memoCanvas.height);
+            render();
+            setMode('add');
+        }
+
+        function isPointInPolygon(pt, polyVerts) {
+            let inside = false;
+            for (let i = 0, j = polyVerts.length - 1; i < polyVerts.length; j = i++) {
+                const xi = polyVerts[i].x, yi = polyVerts[i].y;
+                const xj = polyVerts[j].x, yj = polyVerts[j].y;
+                const intersect = ((yi > pt.y) !== (yj > pt.y)) &&
+                    (pt.x < (xj - xi) * (pt.y - yi) / (yj - yi + 0.00001) + xi);
+                if (intersect) inside = !inside;
+            }
+            return inside;
+        }
+
+        function findPieceIndexAtPoint(svgPt) {
+            for (let i = state.pieces.length - 1; i >= 0; i--) {
+                const piece = state.pieces[i];
+                const center = getPolygonCentroid(piece.vertices);
+                const worldVerts = piece.vertices.map(v => {
+                    const rotated = rotatePoint(v, center, piece.rotation);
+                    return { x: rotated.x + piece.x, y: rotated.y + piece.y };
+                });
+
+                if (isPointInPolygon(svgPt, worldVerts)) {
+                    return i;
+                }
+            }
+
+            let closestIdx = -1;
+            let minMargin = 60;
+            for (let i = state.pieces.length - 1; i >= 0; i--) {
+                const piece = state.pieces[i];
+                const center = getPolygonCentroid(piece.vertices);
+                const worldCenter = { x: center.x + piece.x, y: center.y + piece.y };
+                const dist = Math.hypot(svgPt.x - worldCenter.x, svgPt.y - worldCenter.y);
+                if (dist < minMargin) {
+                    minMargin = dist;
+                    closestIdx = i;
+                }
+            }
+            return closestIdx;
+        }
+
+        function render() {
+            renderGrid();
+            renderDashedBackground();
+            renderTextLayer();
+            piecesLayer.innerHTML = '';
+
+            state.pieces.forEach((piece, pieceIdx) => {
+                const isSelected = (pieceIdx === state.selectedPieceIndex);
+                const center = getPolygonCentroid(piece.vertices);
+
+                const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                group.setAttribute('id', `piece-group-${pieceIdx}`);
+                group.setAttribute('transform', `translate(${piece.x}, ${piece.y}) rotate(${piece.rotation}, ${center.x}, ${center.y})`);
+                group.classList.add('piece-draggable');
+
+                const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                poly.setAttribute('points', piece.vertices.map(p => `${p.x},${p.y}`).join(' '));
+                poly.setAttribute('fill', '#fbcfe8');
+                poly.setAttribute('fill-opacity', '0.5');
+                poly.setAttribute('stroke', '#000000');
+                poly.setAttribute('stroke-width', '2.5');
+                poly.setAttribute('stroke-linejoin', 'round');
+                group.appendChild(poly);
+
+                if (isSelected && (state.activeMode === 'select' || state.activeMode === 'rotate')) {
+                    const polyOutline = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                    polyOutline.setAttribute('class', 'piece-outline');
+                    polyOutline.setAttribute('points', piece.vertices.map(p => `${p.x},${p.y}`).join(' '));
+                    polyOutline.setAttribute('fill', 'none');
+                    polyOutline.setAttribute('stroke', '#2563eb');
+                    polyOutline.setAttribute('stroke-width', '3');
+                    polyOutline.setAttribute('stroke-dasharray', '5,4');
+                    polyOutline.setAttribute('pointer-events', 'none');
+                    group.appendChild(polyOutline);
+                }
+
+                if (state.activeMode === 'rotate') {
+                    const rotBtnGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                    rotBtnGroup.setAttribute('cursor', 'pointer');
+
+                    const rotCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    rotCircle.setAttribute('cx', center.x); rotCircle.setAttribute('cy', center.y);
+                    rotCircle.setAttribute('r', '22');
+                    rotCircle.setAttribute('fill', '#2563eb');
+                    rotCircle.setAttribute('stroke', '#ffffff');
+                    rotCircle.setAttribute('stroke-width', '2');
+                    rotBtnGroup.appendChild(rotCircle);
+
+                    const rotIcon = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    rotIcon.setAttribute('x', center.x); rotIcon.setAttribute('y', center.y + 6);
+                    rotIcon.setAttribute('text-anchor', 'middle'); rotIcon.setAttribute('fill', '#ffffff');
+                    rotIcon.setAttribute('font-size', '16'); rotIcon.setAttribute('font-weight', 'bold');
+                    rotIcon.textContent = '🔄';
+                    rotBtnGroup.appendChild(rotIcon);
+
+                    const handleRotateClick = (e) => {
+                        e.stopPropagation();
+                        if (e.cancelable) e.preventDefault();
+                        saveHistory();
+                        piece.rotation = (piece.rotation + 180) % 360;
+                        render();
+                    };
+
+                    rotBtnGroup.addEventListener('pointerdown', handleRotateClick);
+                    group.appendChild(rotBtnGroup);
+                }
+
+                piecesLayer.appendChild(group);
+            });
+        }
+
+        function updateSelectedHighlight(selectedIdx) {
+            state.pieces.forEach((p, idx) => {
+                const g = document.getElementById(`piece-group-${idx}`);
+                if (!g) return;
+                let outline = g.querySelector('.piece-outline');
+                if (idx === selectedIdx && (state.activeMode === 'select' || state.activeMode === 'rotate')) {
+                    if (!outline) {
+                        outline = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                        outline.setAttribute('class', 'piece-outline');
+                        outline.setAttribute('points', p.vertices.map(v => `${v.x},${v.y}`).join(' '));
+                        outline.setAttribute('fill', 'none');
+                        outline.setAttribute('stroke', '#2563eb');
+                        outline.setAttribute('stroke-width', '3');
+                        outline.setAttribute('stroke-dasharray', '5,4');
+                        outline.setAttribute('pointer-events', 'none');
+                        g.appendChild(outline);
+                    }
+                } else {
+                    if (outline) outline.remove();
+                }
+            });
+        }
+
+        function cutPolygonByLine(polygonVertices, lineP1, lineP2) {
+            const A = lineP2.y - lineP1.y;
+            const B = lineP1.x - lineP2.x;
+            const C = lineP2.x * lineP1.y - lineP1.x * lineP2.y;
+
+            function getSide(pt) { return A * pt.x + B * pt.y + C; }
+
+            const poly1 = [], poly2 = [];
+            const n = polygonVertices.length;
+
+            for (let i = 0; i < n; i++) {
+                const current = polygonVertices[i];
+                const next = polygonVertices[(i + 1) % n];
+
+                const sideCurrent = getSide(current);
+                const sideNext = getSide(next);
+
+                if (sideCurrent >= 0) poly1.push(current);
+                if (sideCurrent <= 0) poly2.push(current);
+
+                if ((sideCurrent > 0 && sideNext < 0) || (sideCurrent < 0 && sideNext > 0)) {
+                    const t = sideCurrent / (sideCurrent - sideNext);
+                    const intersectPt = {
+                        x: current.x + t * (next.x - current.x),
+                        y: current.y + t * (next.y - current.y)
+                    };
+                    poly1.push(intersectPt);
+                    poly2.push(intersectPt);
+                }
+            }
+
+            if (poly1.length >= 3 && poly2.length >= 3) {
+                return [poly1, poly2];
+            }
+            return null;
+        }
+
+        function processCut(cutStart, cutEnd) {
+            let cutHappened = false;
+            const newPieces = [];
+
+            state.pieces.forEach((piece) => {
+                const center = getPolygonCentroid(piece.vertices);
+                const worldVertices = piece.vertices.map(v => {
+                    const rotated = rotatePoint(v, center, piece.rotation);
+                    return { x: rotated.x + piece.x, y: rotated.y + piece.y };
+                });
+
+                const result = cutPolygonByLine(worldVertices, cutStart, cutEnd);
+                if (result && !cutHappened) {
+                    saveHistory();
+                    cutHappened = true;
+                    result.forEach((polyVerts, idx) => {
+                        const newCenter = getPolygonCentroid(polyVerts);
+                        newPieces.push({
+                            id: `piece-${Date.now()}-${idx}`,
+                            vertices: polyVerts.map(v => ({ x: v.x - newCenter.x + newCenter.x, y: v.y - newCenter.y + newCenter.y })),
+                            labels: [],
+                            x: 0,
+                            y: 0,
+                            rotation: 0
+                        });
+                    });
+                } else {
+                    newPieces.push(piece);
+                }
+            });
+
+            if (cutHappened) {
+                state.pieces = newPieces;
+                state.selectedPieceIndex = null;
+                render();
+                setMode('select');
+                showToast('図形を切断しました！「動かす」で動かしてみよう');
+            }
+        }
+
+        function processAddTriangle(startPt, endPt) {
+            const cmStart = svgToCm(startPt);
+            const cmEnd = svgToCm(endPt);
+
+            const sX = Math.round(cmStart.x);
+            const sY = Math.round(cmStart.y);
+            const eX = Math.round(cmEnd.x);
+            const eY = Math.round(cmEnd.y);
+
+            const minX = Math.min(sX, eX);
+            const maxX = Math.max(sX, eX);
+            const minY = Math.min(sY, eY);
+            const maxY = Math.max(sY, eY);
+
+            let addedVertsCm = null;
+
+            // 誤差1マス(1cm)以内の判定
+            const isLeftTarget = 
+                (Math.abs(minX - 2) <= 1) &&
+                (Math.abs(maxX - 6) <= 1) &&
+                (Math.abs(minY - 4) <= 1) &&
+                (Math.abs(maxY - 8) <= 1);
+
+            const isRightTarget = 
+                (Math.abs(minX - 6) <= 1) &&
+                (Math.abs(maxX - 8) <= 1) &&
+                (Math.abs(minY - 4) <= 1) &&
+                (Math.abs(maxY - 8) <= 1);
+
+            if (isLeftTarget) {
+                addedVertsCm = [{ x: 2, y: 4 }, { x: 2, y: 8 }, { x: 6, y: 8 }];
+            } else if (isRightTarget) {
+                addedVertsCm = [{ x: 8, y: 4 }, { x: 8, y: 8 }, { x: 6, y: 8 }];
+            }
+
+            if (addedVertsCm) {
+                saveHistory();
+                const svgVerts = addedVertsCm.map(pt => cmToSvg(pt));
+                state.pieces.push({
+                    id: `piece-added-${Date.now()}`,
+                    vertices: svgVerts,
+                    labels: [],
+                    x: 0,
+                    y: 0,
+                    rotation: 0
+                });
+                render();
+            }
+        }
+
+        const handleStartCutOrAdd = (e) => {
+            const coords = getSvgCoords(e);
+
+            // PCで書くモード（テキスト追加・作成）
+            if (state.activeMode === 'text') {
+                if (e.cancelable) e.preventDefault();
+                if (state.editingTextId) {
+                    finishTextEditing();
+                    return;
+                }
+                
+                // タップ位置が図形と重なっている場合は自由配置、重なっていない場合はマス目にスナップ
+                const isOverPiece = findPieceIndexAtPoint(coords) !== -1;
+                const pos = isOverPiece ? coords : snapToGridPoint(coords);
+
+                saveHistory();
+                const newTextObj = {
+                    id: `text-${Date.now()}`,
+                    x: pos.x,
+                    y: pos.y,
+                    text: ''
+                };
+                state.textElements.push(newTextObj);
+                startTextEditing(newTextObj);
+                return;
+            }
+
+            if (state.activeMode === 'select') {
+                if (e.cancelable) e.preventDefault();
+                const pieceIdx = findPieceIndexAtPoint(coords);
+
+                if (pieceIdx !== -1) {
+                    const piece = state.pieces[pieceIdx];
+                    saveHistory();
+                    state.selectedPieceIndex = pieceIdx;
+                    state.draggedPieceIndex = pieceIdx;
+                    state.dragStartPos = coords;
+                    state.dragPieceStartOffset = { x: piece.x, y: piece.y };
+
+                    updateSelectedHighlight(pieceIdx);
+
+                    if (e.target && e.target.setPointerCapture && e.pointerId !== undefined) {
+                        try { e.target.setPointerCapture(e.pointerId); } catch(err) {}
+                    }
+                }
+                return;
+            }
+
+            if (state.activeMode === 'rotate') {
+                if (e.cancelable) e.preventDefault();
+                const pieceIdx = findPieceIndexAtPoint(coords);
+                if (pieceIdx !== -1) {
+                    saveHistory();
+                    state.pieces[pieceIdx].rotation = (state.pieces[pieceIdx].rotation + 180) % 360;
+                    render();
+                }
+                return;
+            }
+
+            if (state.activeMode === 'cut') {
+                if (e.cancelable) e.preventDefault();
+                const snappedStart = snapToGridPoint(coords);
+                
+                state.isDrawingCut = true;
+                state.cutStart = snappedStart;
+                state.cutCurrent = snappedStart;
+
+                cutStartIndicator.setAttribute('cx', snappedStart.x);
+                cutStartIndicator.setAttribute('cy', snappedStart.y);
+                cutStartIndicator.setAttribute('opacity', '1');
+
+                cutEndIndicator.setAttribute('cx', snappedStart.x);
+                cutEndIndicator.setAttribute('cy', snappedStart.y);
+                cutEndIndicator.setAttribute('opacity', '1');
+            } else if (state.activeMode === 'add') {
+                if (e.cancelable) e.preventDefault();
+                const snappedStart = snapToGridPoint(coords);
+                
+                state.isDrawingAdd = true;
+                state.addStart = snappedStart;
+                state.addCurrent = snappedStart;
+                state.addFirstDir = null;
+
+                cutStartIndicator.setAttribute('cx', snappedStart.x);
+                cutStartIndicator.setAttribute('cy', snappedStart.y);
+                cutStartIndicator.setAttribute('opacity', '1');
+
+                cutEndIndicator.setAttribute('cx', snappedStart.x);
+                cutEndIndicator.setAttribute('cy', snappedStart.y);
+                cutEndIndicator.setAttribute('opacity', '1');
+            }
+        };
+
+        const handleMoveCutOrAdd = (e) => {
+            const coords = getSvgCoords(e);
+
+            if (state.draggedPieceIndex !== null && state.activeMode === 'select') {
+                if (e.cancelable) e.preventDefault();
+                const dx = coords.x - state.dragStartPos.x;
+                const dy = coords.y - state.dragStartPos.y;
+                const piece = state.pieces[state.draggedPieceIndex];
+                
+                piece.x = state.dragPieceStartOffset.x + dx;
+                piece.y = state.dragPieceStartOffset.y + dy;
+
+                const g = document.getElementById(`piece-group-${state.draggedPieceIndex}`);
+                if (g) {
+                    const center = getPolygonCentroid(piece.vertices);
+                    g.setAttribute('transform', `translate(${piece.x}, ${piece.y}) rotate(${piece.rotation}, ${center.x}, ${center.y})`);
+                }
+                return;
+            }
+
+            if (state.isDrawingCut) {
+                if (e.cancelable) e.preventDefault();
+                const snappedCurrent = snapToGridPoint(coords);
+                state.cutCurrent = snappedCurrent;
+
+                userCutLine.setAttribute('d', `M ${state.cutStart.x} ${state.cutStart.y} L ${snappedCurrent.x} ${snappedCurrent.y}`);
+                cutEndIndicator.setAttribute('cx', snappedCurrent.x);
+                cutEndIndicator.setAttribute('cy', snappedCurrent.y);
+            } else if (state.isDrawingAdd) {
+                if (e.cancelable) e.preventDefault();
+                const snappedCurrent = snapToGridPoint(coords);
+                state.addCurrent = snappedCurrent;
+
+                const dx = snappedCurrent.x - state.addStart.x;
+                const dy = snappedCurrent.y - state.addStart.y;
+
+                if (!state.addFirstDir && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
+                    state.addFirstDir = (Math.abs(dx) > Math.abs(dy)) ? 'H' : 'V';
+                }
+
+                let dStr = '';
+                if (state.addFirstDir === 'H') {
+                    dStr = `M ${state.addStart.x} ${state.addStart.y} L ${snappedCurrent.x} ${state.addStart.y} L ${snappedCurrent.x} ${snappedCurrent.y}`;
+                } else {
+                    dStr = `M ${state.addStart.x} ${state.addStart.y} L ${state.addStart.x} ${snappedCurrent.y} L ${snappedCurrent.x} ${snappedCurrent.y}`;
+                }
+
+                userAddLine.setAttribute('d', dStr);
+                cutEndIndicator.setAttribute('cx', snappedCurrent.x);
+                cutEndIndicator.setAttribute('cy', snappedCurrent.y);
+            }
+        };
+
+        const handleEndCutOrAdd = (e) => {
+            if (state.draggedPieceIndex !== null && state.activeMode === 'select') {
+                const piece = state.pieces[state.draggedPieceIndex];
+                
+                const center = getPolygonCentroid(piece.vertices);
+                const v0 = piece.vertices[0];
+                const rotatedV0 = rotatePoint(v0, center, piece.rotation);
+                const worldV0 = { x: rotatedV0.x + piece.x, y: rotatedV0.y + piece.y };
+
+                const snappedWorldV0 = snapToGridPoint(worldV0);
+
+                piece.x += (snappedWorldV0.x - worldV0.x);
+                piece.y += (snappedWorldV0.y - worldV0.y);
+
+                state.draggedPieceIndex = null;
+                render();
+                return;
+            }
+
+            if (state.isDrawingCut) {
+                state.isDrawingCut = false;
+                userCutLine.setAttribute('d', '');
+                cutStartIndicator.setAttribute('opacity', '0');
+                cutEndIndicator.setAttribute('opacity', '0');
+
+                if (state.cutStart && state.cutCurrent) {
+                    const dist = Math.hypot(state.cutStart.x - state.cutCurrent.x, state.cutStart.y - state.cutCurrent.y);
+                    if (dist > 10) {
+                        processCut(state.cutStart, state.cutCurrent);
+                    }
+                }
+            } else if (state.isDrawingAdd) {
+                state.isDrawingAdd = false;
+                userAddLine.setAttribute('d', '');
+                cutStartIndicator.setAttribute('opacity', '0');
+                cutEndIndicator.setAttribute('opacity', '0');
+
+                if (state.addStart && state.addCurrent) {
+                    const dist = Math.hypot(state.addStart.x - state.addCurrent.x, state.addStart.y - state.addCurrent.y);
+                    if (dist > 10) {
+                        processAddTriangle(state.addStart, state.addCurrent);
+                    }
+                }
+            }
+        };
+
+        svg.addEventListener('pointerdown', handleStartCutOrAdd);
+        svg.addEventListener('pointermove', handleMoveCutOrAdd);
+        svg.addEventListener('pointerup', handleEndCutOrAdd);
+        svg.addEventListener('pointercancel', handleEndCutOrAdd);
+
+        function resizeMemoCanvas() {
+            const rect = memoCanvas.parentElement.getBoundingClientRect();
+            memoCanvas.width = rect.width;
+            memoCanvas.height = rect.height;
+
+            if (state.editingTextId) {
+                const textObj = state.textElements.find(t => t.id === state.editingTextId);
+                if (textObj) positionTextEditor(textObj.x, textObj.y);
+            }
+        }
+        window.addEventListener('resize', resizeMemoCanvas);
+        resizeMemoCanvas();
+
+        function getCanvasCoords(e) {
+            const rect = memoCanvas.getBoundingClientRect();
+            let clientX = e.clientX, clientY = e.clientY;
+            if ((clientX === undefined || clientX === null) && e.touches && e.touches.length > 0) {
+                clientX = e.touches[0].clientX; clientY = e.touches[0].clientY;
+            }
+            return {
+                x: clientX - rect.left,
+                y: clientY - rect.top
+            };
+        }
+
+        memoCanvas.addEventListener('pointerdown', (e) => {
+            if (state.activeMode !== 'pen') return;
+            if (e.cancelable) e.preventDefault();
+            state.isDrawingMemo = true;
+            state.lastPenPos = getCanvasCoords(e);
+        });
+
+        memoCanvas.addEventListener('pointermove', (e) => {
+            if (!state.isDrawingMemo || state.activeMode !== 'pen') return;
+            if (e.cancelable) e.preventDefault();
+            const currentPos = getCanvasCoords(e);
+
+            memoCtx.beginPath();
+            memoCtx.moveTo(state.lastPenPos.x, state.lastPenPos.y);
+            memoCtx.lineTo(currentPos.x, currentPos.y);
+
+            if (state.isErasing) {
+                memoCtx.globalCompositeOperation = 'destination-out';
+                memoCtx.lineWidth = 20;
+            } else {
+                memoCtx.globalCompositeOperation = 'source-over';
+                memoCtx.strokeStyle = state.penColor;
+                memoCtx.lineWidth = state.penSize;
+                memoCtx.lineCap = 'round';
+                memoCtx.lineJoin = 'round';
+            }
+
+            memoCtx.stroke();
+            state.lastPenPos = currentPos;
+        });
+
+        const stopMemoDrawing = () => {
+            state.isDrawingMemo = false;
+        };
+        memoCanvas.addEventListener('pointerup', stopMemoDrawing);
+        memoCanvas.addEventListener('pointercancel', stopMemoDrawing);
+
+        const btnModeAdd = document.getElementById('btn-mode-add');
+        const btnModeCut = document.getElementById('btn-mode-cut');
+        const btnModeSelect = document.getElementById('btn-mode-select');
+        const btnModeRotate = document.getElementById('btn-mode-rotate');
+        const btnModeText = document.getElementById('btn-mode-text');
+        const btnModePen = document.getElementById('btn-mode-pen');
+
+        function setMode(mode) {
+            if (state.activeMode === 'text' && mode !== 'text') {
+                finishTextEditing();
+            }
+
+            state.activeMode = mode;
+
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                btn.className = 'mode-btn h-9 px-3 rounded-xl font-bold text-sm transition flex items-center gap-1.5 bg-white text-slate-700 hover:bg-slate-50 border border-slate-300 shadow-sm btn-action shrink-0';
+            });
+
+            const activeBtnMap = {
+                add: btnModeAdd,
+                cut: btnModeCut,
+                select: btnModeSelect,
+                rotate: btnModeRotate,
+                text: btnModeText,
+                pen: btnModePen
+            };
+
+            if (activeBtnMap[mode]) {
+                activeBtnMap[mode].className = 'mode-btn h-9 px-3 rounded-xl font-bold text-sm transition flex items-center gap-1.5 bg-blue-600 text-white shadow-sm btn-action shrink-0';
+            }
+
+            if (mode === 'pen') {
+                memoCanvas.style.pointerEvents = 'auto';
+            } else {
+                memoCanvas.style.pointerEvents = 'none';
+            }
+
+            render();
+        }
+
+        btnModeAdd.addEventListener('click', () => setMode('add'));
+        btnModeCut.addEventListener('click', () => setMode('cut'));
+        btnModeSelect.addEventListener('click', () => setMode('select'));
+        btnModeRotate.addEventListener('click', () => setMode('rotate'));
+        btnModeText.addEventListener('click', () => setMode('text'));
+        btnModePen.addEventListener('click', () => setMode('pen'));
+
+        // Pen options
+        const penBlack = document.getElementById('pen-black');
+        const penRed = document.getElementById('pen-red');
+        const penBlue = document.getElementById('pen-blue');
+        const penEraser = document.getElementById('pen-eraser');
+        const btnClearMemo = document.getElementById('btn-clear-memo');
+
+        function selectPenColor(color, btn) {
+            state.isErasing = false;
+            state.penColor = color;
+            [penBlack, penRed, penBlue].forEach(b => b.classList.remove('ring-slate-800', 'ring-rose-500', 'ring-blue-500'));
+            penEraser.classList.remove('bg-amber-100', 'border-amber-400');
+
+            if (btn === penBlack) btn.classList.add('ring-slate-800');
+            if (btn === penRed) btn.classList.add('ring-rose-500');
+            if (btn === penBlue) btn.classList.add('ring-blue-500');
+
+            setMode('pen');
+        }
+
+        penBlack.addEventListener('click', () => selectPenColor('#1e293b', penBlack));
+        penRed.addEventListener('click', () => selectPenColor('#f43f5e', penRed));
+        penBlue.addEventListener('click', () => selectPenColor('#3b82f6', penBlue));
+
+        penEraser.addEventListener('click', () => {
+            state.isErasing = true;
+            [penBlack, penRed, penBlue].forEach(b => b.classList.remove('ring-slate-800', 'ring-rose-500', 'ring-blue-500'));
+            penEraser.classList.add('bg-amber-100', 'border-amber-400');
+            setMode('pen');
+        });
+
+        btnClearMemo.addEventListener('click', () => {
+            memoCtx.clearRect(0, 0, memoCanvas.width, memoCanvas.height);
+        });
+
+        // Top toolbar actions
+        const btnUndo = document.getElementById('btn-undo');
+        const btnReset = document.getElementById('btn-reset');
+        const btnScreenshot = document.getElementById('btn-screenshot');
+
+        btnUndo.addEventListener('click', () => {
+            if (historyStack.length > 0) {
+                const prev = historyStack.pop();
+                if (prev.pieces) {
+                    state.pieces = prev.pieces;
+                    state.textElements = prev.textElements || [];
+                } else {
+                    state.pieces = prev; // 古いスタックフォーマットとの互換性
+                }
+                state.selectedPieceIndex = null;
+                state.editingTextId = null;
+                if (textEditor) textEditor.classList.add('hidden');
+                render();
+            }
+        });
+
+        btnReset.addEventListener('click', () => {
+            resetToInitialShape();
+        });
+
+        btnScreenshot.addEventListener('click', async () => {
+            if (state.editingTextId) finishTextEditing();
+            const captureArea = document.getElementById('capture-area');
+            try {
+                const canvas = await html2canvas(captureArea, {
+                    backgroundColor: '#ffffff',
+                    scale: 2
+                });
+                const link = document.createElement('a');
+                link.download = `三角形の面積_${Date.now()}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            } catch (err) {}
+        });
+
+        resetToInitialShape();
+    </script>
+</body>
+</html>
